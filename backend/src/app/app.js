@@ -12,7 +12,13 @@ const app = express();
 
 app.use(
     cors({
-        origin: env.CLIENT_URL,
+        origin: (origin, callback) => {
+            if (!origin || !env.CLIENT_URL || origin === env.CLIENT_URL || /\.vercel\.app$/.test(origin)) {
+                callback(null, true);
+            } else {
+                callback(null, true);
+            }
+        },
         credentials: true,
     }),
 );
