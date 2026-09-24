@@ -7,10 +7,22 @@ const client = new OpenAI({
     apiKey: env.API_KEY || "sk-gemini",
 });
 
+const CODING_ASSISTANT_SYSTEM_INSTRUCTION = `You are a helpful coding assistant.
+Always output all source code completely directly inside markdown code blocks (for example, \`\`\`html ... \`\`\`).
+Never omit code.
+Never use interactive preview widgets.
+Never return external immersive entry links or preview chips.`;
+
 export async function generateResponse(content) {
     const resp = await client.chat.completions.create({
         model: "gemini-3.7-flash",
-        messages: [{ role: "user", content }],
+        messages: [
+            {
+                role: "system",
+                content: CODING_ASSISTANT_SYSTEM_INSTRUCTION,
+            },
+            { role: "user", content },
+        ],
     });
 
     return resp.choices[0]?.message?.content;
@@ -36,7 +48,7 @@ export async function generateTitle({ message }) {
 }
 
 export async function getStream({ messages, userId }) {
-    let systemPrompt = `You are a helpful AI assistant.\nCurrent Date is ${new Date().toDateString()}`;
+    let systemPrompt = `${CODING_ASSISTANT_SYSTEM_INSTRUCTION}\nCurrent Date is ${new Date().toDateString()}`;
 
     if (userId) {
         const userContext = await Context.findOne({ user: userId });
