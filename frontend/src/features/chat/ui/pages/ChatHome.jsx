@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import remarkGfm from 'remark-gfm';
@@ -6,15 +6,52 @@ import useAuth from '../../../auth/hooks/useAuth.js';
 import useChat from '../../hooks/useChat.js';
 import 'highlight.js/styles/github-dark.css';
 
+const ChatMessageItem = memo(({ chatMessage, isSending, isLast }) => {
+  if (chatMessage.author === 'user') {
+    return (
+      <div className="ml-auto w-fit max-w-2xl rounded-3xl bg-zinc-200 px-6 py-3 text-sm text-zinc-900">
+        {chatMessage.content}
+      </div>
+    );
+  }
+
+  return (
+    <div className="markdown-content max-w-3xl text-[15px] leading-7 text-zinc-100">
+      {chatMessage.content ? (
+        <ReactMarkdown remarkPlugins={[ remarkGfm ]} rehypePlugins={[ rehypeHighlight ]}>
+          {chatMessage.content}
+        </ReactMarkdown>
+      ) : isSending && isLast ? (
+        <span className="inline-flex items-center gap-2 text-zinc-400">
+          <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-zinc-400" />
+          Thinking...
+        </span>
+      ) : null}
+    </div>
+  );
+});
+
+ChatMessageItem.displayName = 'ChatMessageItem';
+
 const ChatHome = () => {
   const [ message, setMessage ] = useState('');
-  const messagesEndRef = useRef(null);
+  const scrollContainerRef = useRef(null);
+  const isAutoScrollEnabledRef = useRef(true);
   const { user } = useAuth();
   const { messages, isSending, error, send, clearError, selectedConversationId } = useChat();
 
+  const handleScroll = () => {
+    if (!scrollContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+    // Keep auto-scroll active only if user is near the bottom (within 80px)
+    isAutoScrollEnabledRef.current = scrollHeight - scrollTop - clientHeight < 80;
+  };
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [ messages, isSending ]);
+    if (isAutoScrollEnabledRef.current && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+    }
+  }, [ messages ]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -26,6 +63,10 @@ const ChatHome = () => {
     clearError();
     const messageToSend = message;
     setMessage('');
+    isAutoScrollEnabledRef.current = true;
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+    }
     await send(messageToSend);
   };
 
@@ -42,25 +83,19 @@ const ChatHome = () => {
 
       <div className="mx-auto flex w-full max-w-4xl flex-1 min-h-0 flex-col px-4 pb-28 pt-2">
         {hasMessages ? (
-          <div className="chat-scrollbar flex-1 space-y-6 overflow-y-auto pr-2">
-            {messages.map((chatMessage) => (
-              <div key={chatMessage.id}>
-                {chatMessage.author === 'user' ? (
-                  <div className="ml-auto w-fit max-w-2xl rounded-3xl bg-zinc-200 px-6 py-3 text-sm text-zinc-900">
-                    {chatMessage.content}
-                  </div>
-                ) : (
-                  <div className="markdown-content max-w-3xl text-[15px] leading-7 text-zinc-100">
-                    {chatMessage.content ? (
-                      <ReactMarkdown remarkPlugins={[ remarkGfm ]} rehypePlugins={[ rehypeHighlight ]}>
-                        {chatMessage.content}
-                      </ReactMarkdown>
-                    ) : (isSending ? 'Thinking...' : '')}
-                  </div>
-                )}
-              </div>
+          <div
+            ref={scrollContainerRef}
+            onScroll={handleScroll}
+            className="chat-scrollbar flex-1 space-y-6 overflow-y-auto pr-2"
+          >
+            {messages.map((chatMessage, index) => (
+              <ChatMessageItem
+                key={chatMessage.id}
+                chatMessage={chatMessage}
+                isSending={isSending}
+                isLast={index === messages.length - 1}
+              />
             ))}
-            <div ref={messagesEndRef} />
           </div>
         ) : null}
       </div>

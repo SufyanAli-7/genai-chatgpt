@@ -98,8 +98,12 @@ export const handleMessage = async (req, res) => {
 
 
     res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    if (typeof res.flushHeaders === 'function') {
+        res.flushHeaders();
+    }
 
 
     res.setHeader('X-Conversation-Id', conversation._id.toString());
@@ -119,6 +123,9 @@ export const handleMessage = async (req, res) => {
             res.write(`data: ${line}\n`);
         }
         res.write('\n');
+        if (typeof res.flush === 'function') {
+            res.flush();
+        }
     }
 
     if (assistantReply.trim()) {

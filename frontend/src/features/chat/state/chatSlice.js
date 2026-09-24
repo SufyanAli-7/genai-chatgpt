@@ -102,7 +102,6 @@ const chatSlice = createSlice({
 
             if (lastMessage?.author === 'ai') {
                 lastMessage.content += action.payload;
-                syncCurrentMessagesToSelectedConversation(state);
                 return;
             }
 
@@ -111,8 +110,6 @@ const chatSlice = createSlice({
                 author: 'ai',
                 content: action.payload,
             });
-
-            syncCurrentMessagesToSelectedConversation(state);
         },
         selectConversation: (state, action) => {
             const selectedConversationId = action.payload;

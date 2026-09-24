@@ -73,6 +73,25 @@ export const sendMessageApi = async ({ message, conversationId, onToken }) => {
     const decoder = new TextDecoder();
     let buffer = '';
     let fullReply = '';
+    let pendingBatch = '';
+    let animationFrameId = null;
+
+    const flushBatch = () => {
+        if (pendingBatch) {
+            const batch = pendingBatch;
+            pendingBatch = '';
+            fullReply += batch;
+            onToken?.(batch, fullReply);
+        }
+        animationFrameId = null;
+    };
+
+    const scheduleBatch = (token) => {
+        pendingBatch += token;
+        if (!animationFrameId) {
+            animationFrameId = requestAnimationFrame(flushBatch);
+        }
+    };
 
     while (true) {
         const { done, value } = await reader.read();
@@ -93,8 +112,7 @@ export const sendMessageApi = async ({ message, conversationId, onToken }) => {
                 continue;
             }
 
-            fullReply += token;
-            onToken?.(token, fullReply);
+            scheduleBatch(token);
         }
     }
 
@@ -102,10 +120,15 @@ export const sendMessageApi = async ({ message, conversationId, onToken }) => {
         const token = readSseChunk(buffer);
 
         if (token) {
-            fullReply += token;
-            onToken?.(token, fullReply);
+            pendingBatch += token;
         }
     }
+
+    if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+    }
+    flushBatch();
 
     return {
         conversationId: nextConversationId,
