@@ -3,8 +3,8 @@ import env from "../config/env.js";
 import Context from "../models/context.model.js";
 
 const client = new OpenAI({
-    baseURL: env.BASE_URL,
-    apiKey: env.API_KEY,
+    baseURL: env.BASE_URL || "https://gemini-web2api-production-7299.up.railway.app/v1",
+    apiKey: env.API_KEY || "sk-gemini",
 });
 
 export async function generateResponse(content) {
