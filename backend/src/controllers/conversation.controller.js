@@ -59,88 +59,97 @@ export const getConversations = async (req, res, next) => {
 
 
 export const handleMessage = async (req, res) => {
-    const { message, conversationId } = req.body;
-    const user = req.user;
+    try {
+        const { message, conversationId } = req.body;
+        const user = req.user;
 
-    let conversation = null
+        let conversation = null;
 
-    if (!conversationId) {
-        const title = await generateTitle({ message })
+        if (!conversationId) {
+            const title = await generateTitle({ message });
 
-        conversation = await ConversationModel.create({
-            title,
-            user: req.user.id,
-        })
-    } else {
-        conversation = await ConversationModel.findOne({
-            _id: conversationId,
-            user: req.user.id,
-        })
+            conversation = await ConversationModel.create({
+                title,
+                user: req.user.id,
+            });
+        } else {
+            conversation = await ConversationModel.findOne({
+                _id: conversationId,
+                user: req.user.id,
+            });
 
-        if (!conversation) {
-            return res.status(404).json({
-                success: false,
-                message: 'Conversation not found',
-            })
+            if (!conversation) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Conversation not found',
+                });
+            }
         }
-    }
 
-
-    const userMessage = await MessageModel.create({
-        conversation: conversation._id,
-        content: message,
-        author: 'user'
-    })
-
-    const messages = await MessageModel.find({ conversation: conversation._id })
-
-    const stream = await getStream({ messages, userId: user.id })
-
-
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache, no-transform');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
-    if (typeof res.flushHeaders === 'function') {
-        res.flushHeaders();
-    }
-
-
-    res.setHeader('X-Conversation-Id', conversation._id.toString());
-    res.setHeader('X-Conversation-Title', conversation.title);
-    res.setHeader('Access-Control-Expose-Headers', 'X-Conversation-Id, X-Conversation-Title');
-
-    let assistantReply = '';
-
-    for await (const chunk of stream) {
-        const tokenText = chunk?.choices?.[0]?.delta?.content || '';
-        if (!tokenText) continue;
-
-        assistantReply += tokenText;
-
-        const lines = tokenText.split('\n');
-        for (const line of lines) {
-            res.write(`data: ${line}\n`);
-        }
-        res.write('\n');
-        if (typeof res.flush === 'function') {
-            res.flush();
-        }
-    }
-
-    if (assistantReply.trim()) {
-        await MessageModel.create({
+        const userMessage = await MessageModel.create({
             conversation: conversation._id,
-            content: assistantReply,
-            author: 'ai',
+            content: message,
+            author: 'user'
+        });
+
+        const messages = await MessageModel.find({ conversation: conversation._id });
+
+        const stream = await getStream({ messages, userId: user.id });
+
+        // Set ALL response headers BEFORE flushing
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache, no-transform');
+        res.setHeader('Connection', 'keep-alive');
+        res.setHeader('X-Accel-Buffering', 'no');
+        res.setHeader('X-Conversation-Id', conversation._id.toString());
+        res.setHeader('X-Conversation-Title', encodeURIComponent(conversation.title || 'New Chat'));
+        res.setHeader('Access-Control-Expose-Headers', 'X-Conversation-Id, X-Conversation-Title');
+
+        if (typeof res.flushHeaders === 'function') {
+            res.flushHeaders();
+        }
+
+        let assistantReply = '';
+
+        for await (const chunk of stream) {
+            const tokenText = chunk?.choices?.[0]?.delta?.content || '';
+            if (!tokenText) continue;
+
+            assistantReply += tokenText;
+
+            const lines = tokenText.split('\n');
+            for (const line of lines) {
+                res.write(`data: ${line}\n`);
+            }
+            res.write('\n');
+            if (typeof res.flush === 'function') {
+                res.flush();
+            }
+        }
+
+        if (assistantReply.trim()) {
+            await MessageModel.create({
+                conversation: conversation._id,
+                content: assistantReply,
+                author: 'ai',
+            });
+        }
+
+        await ConversationModel.updateOne(
+            { _id: conversation._id },
+            { $set: { updatedAt: new Date() } },
+        );
+
+        res.end();
+    } catch (error) {
+        console.error('Error in handleMessage:', error);
+        if (res.headersSent) {
+            res.write(`data: \n\n`);
+            return res.end();
+        }
+        return res.status(500).json({
+            success: false,
+            message: error.message || 'Internal server error',
         });
     }
-
-    await ConversationModel.updateOne(
-        { _id: conversation._id },
-        { $set: { updatedAt: new Date() } },
-    );
-
-    res.end();
-
-}
+};

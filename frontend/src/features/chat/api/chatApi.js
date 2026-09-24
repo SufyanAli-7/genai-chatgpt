@@ -59,7 +59,15 @@ export const sendMessageApi = async ({ message, conversationId, onToken }) => {
     }
 
     const nextConversationId = response.headers.get('x-conversation-id') || conversationId || null;
-    const conversationTitle = response.headers.get('x-conversation-title') || null;
+    const rawTitle = response.headers.get('x-conversation-title');
+    let conversationTitle = null;
+    if (rawTitle) {
+        try {
+            conversationTitle = decodeURIComponent(rawTitle);
+        } catch {
+            conversationTitle = rawTitle;
+        }
+    }
 
     if (!response.body) {
         return {

@@ -100,7 +100,7 @@ const ChatHome = () => {
         ) : null}
       </div>
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/95 to-transparent pb-5 pt-16">
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-t from-black via-black/95 to-transparent pb-5 pt-16">
         <div className="pointer-events-auto mx-auto w-full max-w-4xl px-4">
           {error ? <p className="mb-2 text-sm text-rose-400">{error}</p> : null}
 
